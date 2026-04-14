@@ -54,7 +54,7 @@ class DeviceRepositoryImpl @Inject constructor(
         return emptyList()
     }
     
-    suspend fun addDeviceByIP(ip: String): CommandResult {
+    override suspend fun addDeviceByIP(ip: String): CommandResult {
         val device = tplinkProtocol.getDeviceInfo(ip)
         
         if (device == null) {
