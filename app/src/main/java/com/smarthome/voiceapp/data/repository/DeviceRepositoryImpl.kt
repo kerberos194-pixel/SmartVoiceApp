@@ -31,7 +31,7 @@ class DeviceRepositoryImpl @Inject constructor(
             database.deviceDao().insert(device.copy(isOn = true))
             CommandResult.Success("${device.name} turned on")
         } else {
-            CommandResult.Error("Failed to turn on - check connection")
+            CommandResult.Error("Failed - check device is online")
         }
     }
     
@@ -46,45 +46,55 @@ class DeviceRepositoryImpl @Inject constructor(
             database.deviceDao().insert(device.copy(isOn = false))
             CommandResult.Success("${device.name} turned off")
         } else {
-            CommandResult.Error("Failed to turn off - check connection")
+            CommandResult.Error("Failed - check device is online")
         }
     }
     
     override suspend fun discoverDevices(): List<Device> {
-        val discovered = tplinkProtocol.discoverDevices()
-        val devices = discovered.map { it.toEntity() }
+        return emptyList()
+    }
+    
+    suspend fun addDeviceByIP(ip: String): CommandResult {
+        val device = tplinkProtocol.getDeviceInfo(ip)
         
-        database.deviceDao().insertAll(devices)
+        if (device == null) {
+            return CommandResult.Error("No device found at $ip")
+        }
         
-        return devices.map { it.toDomain() }
+        val entity = DeviceEntity(
+            id = device.deviceId,
+            name = device.alias,
+            type = determineType(device.model),
+            room = null,
+            isOn = device.relayState == 1,
+            brightness = null,
+            ipAddress = device.ipAddress
+        )
+        
+        database.deviceDao().insert(entity)
+        
+        return CommandResult.Success("Device '${device.alias}' added successfully")
+    }
+    
+    private fun determineType(model: String): String {
+        return when {
+            model.contains("LB", ignoreCase = true) -> "LIGHT"
+            model.contains("LB100", ignoreCase = true) -> "LIGHT"
+            model.contains("HS110", ignoreCase = true) -> "PLUG"
+            model.contains("HS100", ignoreCase = true) -> "SWITCH"
+            model.contains("KB", ignoreCase = true) -> "LIGHT"
+            model.contains("KL", ignoreCase = true) -> "LIGHT"
+            else -> "LIGHT"
+        }
     }
     
     private fun DeviceEntity.toDomain() = Device(
         id = id,
         name = name,
-        type = DeviceType.valueOf(type),
+        type = try { DeviceType.valueOf(type) } catch (e: Exception) { DeviceType.UNKNOWN },
         room = room,
         isOn = isOn,
         brightness = brightness,
         ipAddress = ipAddress
     )
-    
-    private fun com.smarthome.voiceapp.data.remote.DiscoveredDevice.toEntity() = DeviceEntity(
-        id = deviceId,
-        name = alias,
-        type = determineType(model),
-        room = null,
-        isOn = relayState == 1,
-        brightness = null,
-        ipAddress = ipAddress
-    )
-    
-    private fun determineType(model: String): String {
-        return when {
-            model.contains("LB", ignoreCase = true) -> "LIGHT"
-            model.contains("HS110", ignoreCase = true) -> "PLUG"
-            model.contains("HS100", ignoreCase = true) -> "SWITCH"
-            else -> "SWITCH"
-        }
-    }
 }

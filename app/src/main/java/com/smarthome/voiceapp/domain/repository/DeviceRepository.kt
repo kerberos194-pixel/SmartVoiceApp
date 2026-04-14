@@ -9,4 +9,5 @@ interface DeviceRepository {
     suspend fun turnOn(deviceId: String): CommandResult
     suspend fun turnOff(deviceId: String): CommandResult
     suspend fun discoverDevices(): List<Device>
+    suspend fun addDeviceByIP(ip: String): CommandResult
 }

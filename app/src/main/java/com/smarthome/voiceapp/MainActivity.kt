@@ -3,18 +3,21 @@ package com.smarthome.voiceapp
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.smarthome.voiceapp.data.repository.DeviceRepositoryImpl
 import com.smarthome.voiceapp.databinding.ActivityMainBinding
+import com.smarthome.voiceapp.domain.model.CommandResult
 import com.smarthome.voiceapp.domain.model.Device
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import com.smarthome.voiceapp.domain.repository.DeviceRepository
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
@@ -22,7 +25,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     
     @Inject
-    lateinit var deviceRepository: DeviceRepository
+    lateinit var deviceRepository: DeviceRepositoryImpl
     
     private lateinit var deviceAdapter: DeviceAdapter
     
@@ -55,17 +58,17 @@ class MainActivity : AppCompatActivity() {
     
     private fun setupClickListeners() {
         binding.btnDiscover.setOnClickListener {
-            discoverDevices()
+            showAddDeviceDialog()
         }
         
         binding.btnTest.setOnClickListener {
-            binding.tvResult.text = "Comando: encender luz"
-            Toast.makeText(this, "Voice funciona!", Toast.LENGTH_SHORT).show()
+            binding.tvResult.text = "Voice: Di 'enciende la luz'"
+            Toast.makeText(this, "Voice listo!", Toast.LENGTH_SHORT).show()
         }
         
         binding.fabMic.setOnClickListener {
             binding.tvResult.text = "Di: 'enciende la luz'"
-            Toast.makeText(this, "Di un comando de voz", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Comando de voz", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -86,26 +89,46 @@ class MainActivity : AppCompatActivity() {
         } else {
             binding.tvEmpty.visibility = android.view.View.GONE
             binding.recyclerDevices.visibility = android.view.View.VISIBLE
-            binding.tvResult.text = "${devices.size} dispositivos encontrados"
+            binding.tvResult.text = "${devices.size} dispositivo(s)"
         }
     }
     
-    private fun discoverDevices() {
-        binding.tvResult.text = "Buscando dispositivos..."
+    private fun showAddDeviceDialog() {
+        val editText = EditText(this).apply {
+            hint = "Ej: 192.168.1.100"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            setPadding(48, 32, 48, 32)
+        }
+        
+        AlertDialog.Builder(this)
+            .setTitle("Añadir dispositivo TP-Link")
+            .setMessage("Ingresa la dirección IP del dispositivo.\n\nPara saber la IP:\n1. Abre la app Kasa\n2. Ve al dispositivo\n3. Busca 'Device Info'")
+            .setView(editText)
+            .setPositiveButton("Añadir") { _, _ ->
+                val ip = editText.text.toString().trim()
+                if (ip.isNotEmpty()) {
+                    addDeviceByIP(ip)
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+    
+    private fun addDeviceByIP(ip: String) {
+        binding.tvResult.text = "Conectando a $ip..."
         
         lifecycleScope.launch {
-            try {
-                val devices = deviceRepository.discoverDevices()
-                if (devices.isEmpty()) {
-                    binding.tvResult.text = "No se encontraron dispositivos"
-                    Toast.makeText(this@MainActivity, "Verifica que los dispositivos estén en la misma red", Toast.LENGTH_LONG).show()
-                } else {
-                    binding.tvResult.text = "${devices.size} dispositivos encontrados"
-                    Toast.makeText(this@MainActivity, "Descubrimiento exitoso!", Toast.LENGTH_SHORT).show()
+            val result = deviceRepository.addDeviceByIP(ip)
+            
+            when (result) {
+                is CommandResult.Success -> {
+                    binding.tvResult.text = result.message
+                    Toast.makeText(this@MainActivity, result.message, Toast.LENGTH_SHORT).show()
                 }
-            } catch (e: Exception) {
-                binding.tvResult.text = "Error: ${e.message}"
-                Toast.makeText(this@MainActivity, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                is CommandResult.Error -> {
+                    binding.tvResult.text = "Error: ${result.message}"
+                    Toast.makeText(this@MainActivity, result.message, Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
@@ -119,11 +142,10 @@ class MainActivity : AppCompatActivity() {
             }
             
             when (result) {
-                is com.smarthome.voiceapp.domain.model.CommandResult.Success -> {
+                is CommandResult.Success -> {
                     binding.tvResult.text = result.message
-                    Toast.makeText(this@MainActivity, result.message, Toast.LENGTH_SHORT).show()
                 }
-                is com.smarthome.voiceapp.domain.model.CommandResult.Error -> {
+                is CommandResult.Error -> {
                     binding.tvResult.text = "Error: ${result.message}"
                     Toast.makeText(this@MainActivity, result.message, Toast.LENGTH_SHORT).show()
                 }
