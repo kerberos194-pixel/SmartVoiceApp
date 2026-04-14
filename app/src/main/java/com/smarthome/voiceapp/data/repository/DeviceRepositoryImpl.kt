@@ -76,6 +76,31 @@ class DeviceRepositoryImpl @Inject constructor(
         return CommandResult.Success("Device '${device.alias}' added successfully")
     }
     
+    suspend fun scanAndAddDevices(baseIP: String): CommandResult {
+        val devices = tplinkProtocol.scanNetwork(baseIP)
+        
+        if (devices.isEmpty()) {
+            return CommandResult.Error("No TP-Link devices found on network")
+        }
+        
+        var added = 0
+        for (device in devices) {
+            val entity = DeviceEntity(
+                id = device.deviceId,
+                name = device.alias,
+                type = determineType(device.model),
+                room = null,
+                isOn = device.relayState == 1,
+                brightness = null,
+                ipAddress = device.ipAddress
+            )
+            database.deviceDao().insert(entity)
+            added++
+        }
+        
+        return CommandResult.Success("Found and added $added device(s)")
+    }
+    
     private fun determineType(model: String): String {
         return when {
             model.contains("LB", ignoreCase = true) -> "LIGHT"

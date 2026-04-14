@@ -58,7 +58,7 @@ class MainActivity : AppCompatActivity() {
     
     private fun setupClickListeners() {
         binding.btnDiscover.setOnClickListener {
-            showAddDeviceDialog()
+            showScanOrAddDialog()
         }
         
         binding.btnTest.setOnClickListener {
@@ -112,6 +112,60 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancelar", null)
             .show()
+    }
+    
+    private fun showScanOrAddDialog() {
+        val options = arrayOf("Escanear red (automático)", "Añadir por IP manual")
+        
+        AlertDialog.Builder(this)
+            .setTitle("Buscar dispositivos")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> showScanDialog()
+                    1 -> showAddDeviceDialog()
+                }
+            }
+            .show()
+    }
+    
+    private fun showScanDialog() {
+        val editText = EditText(this).apply {
+            hint = "Ej: 192.168.1.1"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            setPadding(48, 32, 48, 32)
+        }
+        
+        AlertDialog.Builder(this)
+            .setTitle("Escanear red")
+            .setMessage("Ingresa cualquier IP de tu red local.\nEj: 192.168.1.1\n\nEl escaneo detectará todos los dispositivos TP-Link.")
+            .setView(editText)
+            .setPositiveButton("Escanear") { _, _ ->
+                val ip = editText.text.toString().trim()
+                if (ip.isNotEmpty()) {
+                    scanNetwork(ip)
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+    
+    private fun scanNetwork(baseIP: String) {
+        binding.tvResult.text = "Escaneando red..."
+        
+        lifecycleScope.launch {
+            val result = deviceRepository.scanAndAddDevices(baseIP)
+            
+            when (result) {
+                is CommandResult.Success -> {
+                    binding.tvResult.text = result.message
+                    Toast.makeText(this@MainActivity, result.message, Toast.LENGTH_SHORT).show()
+                }
+                is CommandResult.Error -> {
+                    binding.tvResult.text = "Error: ${result.message}"
+                    Toast.makeText(this@MainActivity, result.message, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
     
     private fun addDeviceByIP(ip: String) {
