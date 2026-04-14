@@ -24,13 +24,14 @@ class DeviceRepositoryImpl @Inject constructor(
         val device = database.deviceDao().getById(deviceId) 
             ?: return CommandResult.Error("Device not found")
         
-        val ip = device.ipAddress ?: return CommandResult.Error("No IP")
+        val ip = device.ipAddress ?: return CommandResult.Error("No IP address")
         val success = tplinkProtocol.sendCommand(ip, 1)
         
         return if (success) {
+            database.deviceDao().insert(device.copy(isOn = true))
             CommandResult.Success("${device.name} turned on")
         } else {
-            CommandResult.Error("Failed to turn on")
+            CommandResult.Error("Failed to turn on - check connection")
         }
     }
     
@@ -38,22 +39,52 @@ class DeviceRepositoryImpl @Inject constructor(
         val device = database.deviceDao().getById(deviceId) 
             ?: return CommandResult.Error("Device not found")
         
-        val ip = device.ipAddress ?: return CommandResult.Error("No IP")
+        val ip = device.ipAddress ?: return CommandResult.Error("No IP address")
         val success = tplinkProtocol.sendCommand(ip, 0)
         
         return if (success) {
+            database.deviceDao().insert(device.copy(isOn = false))
             CommandResult.Success("${device.name} turned off")
         } else {
-            CommandResult.Error("Failed to turn off")
+            CommandResult.Error("Failed to turn off - check connection")
         }
     }
     
     override suspend fun discoverDevices(): List<Device> {
-        return emptyList()
+        val discovered = tplinkProtocol.discoverDevices()
+        val devices = discovered.map { it.toEntity() }
+        
+        database.deviceDao().insertAll(devices)
+        
+        return devices.map { it.toDomain() }
     }
     
     private fun DeviceEntity.toDomain() = Device(
-        id = id, name = name, type = DeviceType.valueOf(type),
-        room = room, isOn = isOn, brightness = brightness, ipAddress = ipAddress
+        id = id,
+        name = name,
+        type = DeviceType.valueOf(type),
+        room = room,
+        isOn = isOn,
+        brightness = brightness,
+        ipAddress = ipAddress
     )
+    
+    private fun com.smarthome.voiceapp.data.remote.DiscoveredDevice.toEntity() = DeviceEntity(
+        id = deviceId,
+        name = alias,
+        type = determineType(model),
+        room = null,
+        isOn = relayState == 1,
+        brightness = null,
+        ipAddress = ipAddress
+    )
+    
+    private fun determineType(model: String): String {
+        return when {
+            model.contains("LB", ignoreCase = true) -> "LIGHT"
+            model.contains("HS110", ignoreCase = true) -> "PLUG"
+            model.contains("HS100", ignoreCase = true) -> "SWITCH"
+            else -> "SWITCH"
+        }
+    }
 }

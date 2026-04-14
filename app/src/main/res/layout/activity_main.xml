@@ -4,9 +4,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="24dp"
-    android:background="#1C1B1F"
-    android:gravity="center_horizontal">
+    android:padding="16dp"
+    android:background="#1C1B1F">
 
     <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
@@ -22,8 +21,8 @@
             android:gravity="center">
 
             <ImageView
-                android:layout_width="64dp"
-                android:layout_height="64dp"
+                android:layout_width="80dp"
+                android:layout_height="80dp"
                 android:src="@android:drawable/ic_btn_speak_now"
                 app:tint="#6750A4"/>
 
@@ -32,9 +31,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                android:text="Tap to speak"
-                android:textSize="18sp"
-                android:textColor="#E6E1E5"/>
+                android:text="Smart Voice Assistant"
+                android:textSize="20sp"
+                android:textColor="#E6E1E5"
+                android:textStyle="bold"/>
 
             <TextView
                 android:id="@+id/tvResult"
@@ -52,25 +52,51 @@
         android:id="@+id/btnDiscover"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:text="Discover Devices"/>
+        android:layout_marginTop="16dp"
+        android:text="Buscar Dispositivos TP-Link"
+        app:backgroundTint="#6750A4"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Dispositivos encontrados:"
+        android:textColor="#E6E1E5"
+        android:textSize="16sp"/>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerDevices"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="8dp"/>
+
+    <TextView
+        android:id="@+id/tvEmpty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:padding="32dp"
+        android:text="No hay dispositivos.\nPresiona 'Buscar Dispositivos'"
+        android:textColor="#9E9E9E"/>
 
     <Button
         android:id="@+id/btnTest"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="Test Voice"
+        android:text="Probar Comando de Voz"
         style="@style/Widget.Material3.Button.OutlinedButton"/>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabMic"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
+        android:layout_gravity="center"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="16dp"
         android:src="@android:drawable/ic_btn_speak_now"
         app:backgroundTint="#6750A4"
-        app:tint="#FFFFFF"
-        app:fabSize="normal"/>
+        app:tint="#FFFFFF"/>
 
 </LinearLayout>
