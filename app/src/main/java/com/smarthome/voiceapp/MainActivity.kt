@@ -2,6 +2,8 @@ package com.smarthome.voiceapp
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.wifi.WifiManager
+import android.os.Build
 import android.os.Bundle
 import android.widget.EditText
 import android.widget.Toast
@@ -16,7 +18,9 @@ import com.smarthome.voiceapp.databinding.ActivityMainBinding
 import com.smarthome.voiceapp.domain.model.CommandResult
 import com.smarthome.voiceapp.domain.model.Device
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -32,8 +36,10 @@ class MainActivity : AppCompatActivity() {
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        if (permissions[Manifest.permission.RECORD_AUDIO] == true) {
-            Toast.makeText(this, "Micrófono listo", Toast.LENGTH_SHORT).show()
+        permissions.entries.forEach { entry ->
+            if (entry.value) {
+                Toast.makeText(this, "Permiso ${entry.key} concedido", Toast.LENGTH_SHORT).show()
+            }
         }
     }
     
@@ -121,11 +127,40 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Buscar dispositivos")
             .setItems(options) { _, which ->
                 when (which) {
-                    0 -> showScanDialog()
+                    0 -> scanWithCurrentIP()
                     1 -> showAddDeviceDialog()
                 }
             }
             .show()
+    }
+    
+    private fun scanWithCurrentIP() {
+        val wifiManager = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
+        val ipAddress = getIPAddress(wifiManager)
+        
+        if (ipAddress != null) {
+            binding.tvResult.text = "Escaneando red: $ipAddress"
+            scanNetwork(ipAddress)
+        } else {
+            Toast.makeText(this, "No se pudo obtener IP del WiFi", Toast.LENGTH_LONG).show()
+            showScanDialog()
+        }
+    }
+    
+    private fun getIPAddress(wifiManager: WifiManager): String? {
+        try {
+            val ipAddress = wifiManager.connectionInfo.ipAddress
+            val formattedIP = String.format(
+                "%d.%d.%d.%d",
+                ipAddress and 0xff,
+                ipAddress shr 8 and 0xff,
+                ipAddress shr 16 and 0xff,
+                ipAddress shr 24 and 0xff
+            )
+            return formattedIP
+        } catch (e: Exception) {
+            return null
+        }
     }
     
     private fun showScanDialog() {
@@ -213,6 +248,18 @@ class MainActivity : AppCompatActivity() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) 
             != PackageManager.PERMISSION_GRANTED) {
             permissions.add(Manifest.permission.RECORD_AUDIO)
+        }
+        
+        val locationPermissions = arrayOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+        
+        for (perm in locationPermissions) {
+            if (ContextCompat.checkSelfPermission(this, perm) != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(perm)
+                break
+            }
         }
         
         if (permissions.isNotEmpty()) {

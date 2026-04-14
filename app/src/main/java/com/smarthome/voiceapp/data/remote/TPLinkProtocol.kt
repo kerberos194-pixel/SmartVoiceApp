@@ -1,5 +1,6 @@
 package com.smarthome.voiceapp.data.remote
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.DatagramPacket
@@ -14,6 +15,7 @@ class TPLinkProtocol {
     companion object {
         private const val PORT = 9999
         private val KEY = "lski*8J0gO8lWF@".toByteArray()
+        private const val TAG = "TPLinkProtocol"
     }
     
     private val gson = Gson()
@@ -41,6 +43,7 @@ class TPLinkProtocol {
             socket.close()
             true
         } catch (e: Exception) {
+            Log.e(TAG, "sendCommand failed: ${e.message}")
             false
         }
     }
@@ -54,10 +57,12 @@ class TPLinkProtocol {
             val packet = DatagramPacket(encrypted, encrypted.size, InetAddress.getByName(ip), PORT)
             socket.send(packet)
             val response = ByteArray(4096)
-            socket.receive(DatagramPacket(response, response.size))
+            val responsePacket = DatagramPacket(response, response.size)
+            socket.receive(responsePacket)
             socket.close()
             
-            val json = decrypt(response.copyOf(response.size))
+            val dataLength = responsePacket.length
+            val json = decrypt(response.copyOf(dataLength))
             val info = gson.fromJson(json, SysInfo::class.java)
             
             DiscoveredDevice(
@@ -69,6 +74,7 @@ class TPLinkProtocol {
                 mac = info.mac ?: ""
             )
         } catch (e: Exception) {
+            Log.e(TAG, "getDeviceInfo failed for $ip: ${e.message}")
             null
         }
     }
@@ -77,58 +83,79 @@ class TPLinkProtocol {
         val devices = mutableListOf<DiscoveredDevice>()
         
         val parts = baseIP.split(".")
-        if (parts.size != 4) return@withContext devices
+        if (parts.size != 4) {
+            Log.e(TAG, "Invalid IP format: $baseIP")
+            return@withContext devices
+        }
         
         val base = "${parts[0]}.${parts[1]}.${parts[2]}."
         
         val socket = try {
-            DatagramSocket(PORT)
+            DatagramSocket(0)
         } catch (e: Exception) {
+            Log.e(TAG, "Failed to create socket: ${e.message}")
             return@withContext devices
         }
-        socket.broadcast = true
-        socket.soTimeout = 3000
         
-        for (i in 1..254) {
-            val ip = "$base$i"
-            try {
-                val cmd = """{"system":{"get_sysinfo":{}}}"""
-                val encrypted = encrypt(cmd)
-                val packet = DatagramPacket(encrypted, encrypted.size, InetAddress.getByName(ip), PORT)
-                socket.send(packet)
-            } catch (e: Exception) {
-                // Skip
-            }
-        }
-        
-        val endTime = System.currentTimeMillis() + 3000
-        while (System.currentTimeMillis() < endTime) {
-            try {
-                val response = ByteArray(4096)
-                val packet = DatagramPacket(response, response.size)
-                socket.receive(packet)
-                
-                val json = decrypt(response.copyOf(packet.length))
-                val info = gson.fromJson(json, SysInfo::class.java)
-                
-                val device = DiscoveredDevice(
-                    deviceId = info.deviceId ?: packet.address.hostAddress ?: "unknown",
-                    alias = info.alias ?: "Device ${packet.address.hostAddress}",
-                    ipAddress = packet.address.hostAddress ?: "",
-                    relayState = info.relayState ?: 0,
-                    model = info.model ?: "",
-                    mac = info.mac ?: ""
-                )
-                
-                if (device.ipAddress.isNotEmpty()) {
-                    devices.add(device)
+        try {
+            socket.soTimeout = 5000
+            socket.broadcast = true
+            
+            val cmd = """{"system":{"get_sysinfo":{}}}"""
+            val encrypted = encrypt(cmd)
+            
+            Log.d(TAG, "Scanning network: $base*")
+            
+            for (i in 1..254) {
+                val ip = "$base$i"
+                try {
+                    val packet = DatagramPacket(encrypted.copyOf(), encrypted.size, InetAddress.getByName(ip), PORT)
+                    socket.send(packet)
+                } catch (e: Exception) {
+                    // Skip individual send errors
                 }
-            } catch (e: Exception) {
-                // Timeout or parse error
             }
+            
+            Log.d(TAG, "Waiting for responses...")
+            val endTime = System.currentTimeMillis() + 5000
+            
+            while (System.currentTimeMillis() < endTime) {
+                try {
+                    val response = ByteArray(4096)
+                    val packet = DatagramPacket(response, response.size)
+                    socket.receive(packet)
+                    
+                    val dataLength = packet.length
+                    val json = decrypt(response.copyOf(dataLength))
+                    val info = gson.fromJson(json, SysInfo::class.java)
+                    
+                    val deviceIP = packet.address.hostAddress ?: continue
+                    
+                    Log.d(TAG, "Found device: ${info.alias} at $deviceIP (MAC: ${info.mac})")
+                    
+                    val device = DiscoveredDevice(
+                        deviceId = info.deviceId ?: deviceIP,
+                        alias = info.alias ?: "Device $deviceIP",
+                        ipAddress = deviceIP,
+                        relayState = info.relayState ?: 0,
+                        model = info.model ?: "",
+                        mac = info.mac ?: ""
+                    )
+                    
+                    if (device.ipAddress.isNotEmpty() && !devices.any { it.ipAddress == device.ipAddress }) {
+                        devices.add(device)
+                    }
+                } catch (e: Exception) {
+                    // Continue waiting for more responses
+                }
+            }
+            
+            Log.d(TAG, "Scan complete. Found ${devices.size} devices")
+            
+        } finally {
+            socket.close()
         }
         
-        socket.close()
         devices
     }
 }
