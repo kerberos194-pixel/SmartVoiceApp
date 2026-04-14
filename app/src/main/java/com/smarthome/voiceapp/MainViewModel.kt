@@ -1,6 +1,5 @@
 package com.smarthome.voiceapp
 
-import android.os.Bundle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -24,10 +23,6 @@ class MainViewModel @Inject constructor(
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state
     
-    fun observe(owner: LifecycleOwner, onChange: (UiState) -> Unit) {
-        state.observe(owner) { onChange(it) }
-    }
-    
     fun setListening(listening: Boolean) {
         _state.value = _state.value.copy(isListening = listening)
     }
@@ -35,12 +30,6 @@ class MainViewModel @Inject constructor(
     fun discoverDevices() {
         viewModelScope.launch {
             deviceRepository.discoverDevices()
-        }
-    }
-    
-    private fun <T> StateFlow<T>.observe(owner: LifecycleOwner, observer: (T) -> Unit) {
-        androidx.lifecycle.lifecycleScope.launchWhenStarted {
-            collect { observer(it) }
         }
     }
 }

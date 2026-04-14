@@ -71,6 +71,6 @@
         android:src="@android:drawable/ic_btn_speak_now"
         app:backgroundTint="#6750A4"
         app:tint="#FFFFFF"
-        app:fabSize="large"/>
+        app:fabSize="normal"/>
 
 </LinearLayout>
