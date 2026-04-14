@@ -29,9 +29,9 @@ class DeviceAdapter(
 
         init {
             binding.root.setOnClickListener {
-                val position = absoluteAdapterPosition
-                if (position != RecyclerView.NO_POSITION) {
-                    onDeviceClick(getItem(position))
+                val pos = adapterPosition
+                if (pos != RecyclerView.NO_POSITION) {
+                    onDeviceClick(getItem(pos))
                 }
             }
         }
