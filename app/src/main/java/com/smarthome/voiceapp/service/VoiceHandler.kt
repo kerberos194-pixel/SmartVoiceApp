@@ -26,7 +26,7 @@ class VoiceHandler @Inject constructor(
             val result = useCase(text)
             val msg = when (result) {
                 is CommandResult.Success -> result.message
-                is CommandResult.Error -> result.message
+                is CommandResult.Error -> "Error: ${result.message}"
             }
             listener?.onResult(msg)
         }
